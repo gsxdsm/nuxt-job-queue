@@ -47,11 +47,11 @@ describe('Job Timeout Tests', () => {
             failedJob = data
         })
 
-        const job = createJobHandler<typeof testModule>({ timeout: 1000 })
+        const job = createJobHandler<typeof testModule>({ timeout: 500 })
         await job.test.longRunningJob()
 
 
-        await new Promise(r => setTimeout(r, 2500))
+        await new Promise(r => setTimeout(r, 1500))
         expect(failedJob).not.toBeNull()
         expect(failedJob.result).toContain('timeout')
     })
@@ -74,11 +74,11 @@ describe('Job Timeout Tests', () => {
             }
         })
 
-        const job = createJobHandler<typeof testModule>({ timeout: '2s' })
+        const job = createJobHandler<typeof testModule>({ timeout: '1s' })
         await job.test.delayedTimeoutJob()
 
 
-        await new Promise(r => setTimeout(r, 2500))
+        await new Promise(r => setTimeout(r, 1500))
         expect(timeoutError).toBe(true)
     })
 })

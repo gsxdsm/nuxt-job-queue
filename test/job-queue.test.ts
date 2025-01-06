@@ -83,7 +83,7 @@ describe('Job Queue Tests', async () => {
 
         // Wait for retries
         await new Promise(r => setTimeout(r, 1000))
-        expect(attempts).toBe(3)
+        expect(attempts).toBe(4)
     })
 
     it('should schedule and execute cron jobs', async () => {

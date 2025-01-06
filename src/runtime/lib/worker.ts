@@ -181,14 +181,14 @@ export class Worker extends EventEmitter {
         let remaining = 0
 
         if (retry) {
-            remaining = retry.remaining = (retry.remaining || retry.count) - 1
+            // Add one to the count so the first attempt doesn't count as a retry
+            remaining = retry.remaining = (retry.remaining || retry.count + 1) - 1
         }
 
         if (remaining > 0) {
             let strategy = this.strategies[retry.strategy || 'linear']
             if (!strategy) {
                 strategy = linear
-
                 console.error('No such retry strategy: `' + retry.strategy + '`')
                 console.error('Using linear strategy')
             }

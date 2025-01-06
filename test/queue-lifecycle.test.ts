@@ -20,6 +20,12 @@ describe('Queue Lifecycle Tests', () => {
         if (fs.existsSync(TEST_DB_PATH)) {
             fs.unlinkSync(TEST_DB_PATH)
         }
+        if (fs.existsSync(`${TEST_DB_PATH}-shm`)) {
+            fs.unlinkSync(`${TEST_DB_PATH}-shm`)
+        }
+        if (fs.existsSync(`${TEST_DB_PATH}-wal`)) {
+            fs.unlinkSync(`${TEST_DB_PATH}-wal`)
+        }
     })
 
     it('should manage job lifecycle states', async () => {

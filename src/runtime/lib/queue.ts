@@ -159,7 +159,6 @@ export default class Queue {
 
 
         } catch (err) {
-            console.log("Error!!!:", err)
             callback(err as Error)
         }
     }

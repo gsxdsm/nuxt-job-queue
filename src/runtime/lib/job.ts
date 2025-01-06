@@ -116,7 +116,7 @@ export default class Job extends EventEmitter {
         const lastId = stmt.run(values)
 
         if (self.data.id == undefined && lastId) {
-            self.data.id = lastId
+            self.data.id = lastId.lastInsertRowid
         }
 
         callback && callback(null, self)

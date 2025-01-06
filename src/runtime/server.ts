@@ -3,7 +3,9 @@ import Job, { type JobOptions } from './lib/job'
 import { jobWorkers, type Worker } from './lib/worker'
 import Queue from './lib/queue'
 import { DEFAULT_QUEUE, CRON_QUEUE } from './lib/enum'
+import { useLogger } from '@nuxt/kit'
 
+const logger = useLogger('nuxt-job-queue')
 
 export const queues: Record<string, Queue> = {}
 export function createQueues(jobDbConnection: Connection) {
@@ -22,9 +24,9 @@ export function createJobHandler<T>(options: JobOptions) {
             //const params = { function: func, args: args }
             targetQueue.enqueue(`${module}.${func}`, args, options, function (err: Error | null, job?: Job) {
               if (err) {
-                console.log('error:', err)
+                logger.error('error:', err)
               } else {
-                console.log('success:', job?.data)
+                logger.debug('success:', job?.data)
               }
             })
           }
@@ -60,16 +62,17 @@ export function createWorker(jobDbConnection: Connection, filesWithId: ModuleMap
   })
 
   worker.on('dequeued', function (data) {
-    console.log('Dequeued', data)
+    logger.debug('Dequeued', data)
   })
   worker.on('failed', function (data) {
-    console.log('Failed', data)
+    logger.debug('Failed', data)
   })
   worker.on('complete', function (data) {
-    console.log('Complete', data)
+    logger.debug('Complete', data)
   })
   worker.on('error', function (err) {
-    console.log('Error', err)
+    logger.debug('Error', err)
+    //TODO: Explore if we should stop the worker here
     //worker.stop(undefined)
   })
 

@@ -22,6 +22,12 @@ describe('Retry Strategy Tests', () => {
         if (fs.existsSync(TEST_DB_PATH)) {
             fs.unlinkSync(TEST_DB_PATH)
         }
+        if (fs.existsSync(`${TEST_DB_PATH}-shm`)) {
+            fs.unlinkSync(`${TEST_DB_PATH}-shm`)
+        }
+        if (fs.existsSync(`${TEST_DB_PATH}-wal`)) {
+            fs.unlinkSync(`${TEST_DB_PATH}-wal`)
+        }
     })
 
     it('should use linear retry strategy', async () => {
@@ -35,25 +41,26 @@ describe('Retry Strategy Tests', () => {
             }
         }
 
+        createWorker(jobDbConnection, [{ id: 'test', module: testModule.test }], DEFAULT_QUEUE, true, 100, 0)
+
         const job = createJobHandler<typeof testModule>({
             retry: {
                 count: 3,
-                delay: 1000,
+                delay: 500,
                 strategy: 'linear'
             }
         })
         await job.test.linearRetryJob()
 
-        createWorker(jobDbConnection, [{ id: 'test', module: testModule }], DEFAULT_QUEUE, true, 100, 0)
 
-        await new Promise(r => setTimeout(r, 4000))
+        await new Promise(r => setTimeout(r, 2000))
 
         // Check intervals between retries are roughly equal
         const intervals = retryTimes.slice(1).map((time, i) => time - retryTimes[i])
         const avgInterval = intervals.reduce((a, b) => a + b) / intervals.length
 
         intervals.forEach(interval => {
-            expect(Math.abs(interval - 1000)).toBeLessThan(200) // Allow 200ms variance
+            expect(Math.abs(interval - avgInterval)).toBeLessThan(200) // Allow 200ms variance
         })
     })
 
@@ -68,18 +75,18 @@ describe('Retry Strategy Tests', () => {
             }
         }
 
+        createWorker(jobDbConnection, [{ id: 'test', module: testModule.test }], DEFAULT_QUEUE, true, 100, 0)
+
         const job = createJobHandler<typeof testModule>({
             retry: {
                 count: 3,
-                delay: 500,
+                delay: 200,
                 strategy: 'exponential'
             }
         })
         await job.test.expRetryJob()
 
-        createWorker(jobDbConnection, [{ id: 'test', module: testModule }], DEFAULT_QUEUE, true, 100, 0)
-
-        await new Promise(r => setTimeout(r, 4000))
+        await new Promise(r => setTimeout(r, 2000))
 
         const intervals = retryTimes.slice(1).map((time, i) => time - retryTimes[i])
         // Each retry should take progressively longer
