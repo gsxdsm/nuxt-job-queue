@@ -47,9 +47,9 @@ export function createWorker(jobDbConnection: Connection, filesWithId: ModuleMap
         return
       }
       worker.register({
-        [`${file.id}.${symbol}`]: function (args: any[], callback: (arg0?: any, arg1?: any) => void) {
+        [`${file.id}.${symbol}`]: async function (args: any[], callback: (arg0?: any, arg1?: any) => void) {
           try {
-            (func as (...args: any[]) => void)(...args)
+            await (func as (...args: any[]) => void)(...args)
             callback(null, args)
           } catch (err) {
             callback(err)

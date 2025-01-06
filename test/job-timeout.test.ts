@@ -22,6 +22,12 @@ describe('Job Timeout Tests', () => {
         if (fs.existsSync(TEST_DB_PATH)) {
             fs.unlinkSync(TEST_DB_PATH)
         }
+        if (fs.existsSync(`${TEST_DB_PATH}-shm`)) {
+            fs.unlinkSync(`${TEST_DB_PATH}-shm`)
+        }
+        if (fs.existsSync(`${TEST_DB_PATH}-wal`)) {
+            fs.unlinkSync(`${TEST_DB_PATH}-wal`)
+        }
     })
 
     it('should timeout long-running jobs', async () => {
@@ -34,17 +40,18 @@ describe('Job Timeout Tests', () => {
             }
         }
 
-        const job = createJobHandler<typeof testModule>({ timeout: 1000 })
-        await job.test.longRunningJob()
-
         let failedJob: any = null
-        const worker = createWorker(jobDbConnection, [{ id: 'test', module: testModule }], DEFAULT_QUEUE, true, 100, 0)
+        const worker = createWorker(jobDbConnection, [{ id: 'test', module: testModule.test }], DEFAULT_QUEUE, true, 100, 0)
 
         worker.on('failed', (data) => {
             failedJob = data
         })
 
-        await new Promise(r => setTimeout(r, 1500))
+        const job = createJobHandler<typeof testModule>({ timeout: 1000 })
+        await job.test.longRunningJob()
+
+
+        await new Promise(r => setTimeout(r, 2500))
         expect(failedJob).not.toBeNull()
         expect(failedJob.result).toContain('timeout')
     })
@@ -58,17 +65,18 @@ describe('Job Timeout Tests', () => {
             }
         }
 
-        const job = createJobHandler<typeof testModule>({ timeout: '2s' })
-        await job.test.delayedTimeoutJob()
-
         let timeoutError = false
-        const worker = createWorker(jobDbConnection, [{ id: 'test', module: testModule }], DEFAULT_QUEUE, true, 100, 0)
+        const worker = createWorker(jobDbConnection, [{ id: 'test', module: testModule.test }], DEFAULT_QUEUE, true, 100, 0)
 
         worker.on('failed', (data) => {
             if (data.result.includes('timeout')) {
                 timeoutError = true
             }
         })
+
+        const job = createJobHandler<typeof testModule>({ timeout: '2s' })
+        await job.test.delayedTimeoutJob()
+
 
         await new Promise(r => setTimeout(r, 2500))
         expect(timeoutError).toBe(true)

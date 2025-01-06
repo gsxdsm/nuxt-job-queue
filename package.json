@@ -44,7 +44,7 @@
     "prepublishOnly": "pnpm prepack",
     "release": "changelogen --release && npm publish && git push --follow-tags",
     "update-deps": "taze -w && pnpm i",
-    "test": "vitest run job-queue.test.ts",
+    "test": "vitest run job-timeout.test.ts",
     "test:watch": "vitest watch",
     "prepare": ""
   },
