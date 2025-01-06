@@ -3,9 +3,9 @@ import Job, { type JobOptions } from './lib/job'
 import { jobWorkers, type Worker } from './lib/worker'
 import Queue from './lib/queue'
 import { DEFAULT_QUEUE, CRON_QUEUE } from './lib/enum'
-import { useLogger } from '@nuxt/kit'
+import { consola } from "consola"
 
-const logger = useLogger('nuxt-job-queue')
+const logger = consola.create({}).withTag("nuxt-job-queue")
 
 export const queues: Record<string, Queue> = {}
 export function createQueues(jobDbConnection: Connection) {

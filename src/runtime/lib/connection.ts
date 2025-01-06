@@ -3,7 +3,6 @@
 import Database from 'better-sqlite3'
 import Queue from './queue'
 import Worker from './worker'
-import Job from './job'
 import { TABLE_NAME } from './enum'
 import * as pathe from 'pathe'
 import * as fs from 'fs'

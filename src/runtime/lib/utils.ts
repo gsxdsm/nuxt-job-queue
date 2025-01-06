@@ -32,11 +32,15 @@ export function parseRetry(retry: Retry | undefined): Retry | undefined {
     return result
 }
 
-export function parseDelay(delay: number | string | undefined): number {
+export function parseDelay(delay: number | string | Date | undefined): number {
     if (delay && typeof delay === 'string') {
         return parse(delay) || 0
     } else if (delay && typeof delay === 'number') {
         return delay
+    } else if (delay && delay instanceof Date) {
+        //support specific dates
+        const futureTime = delay.getTime() - Date.now()
+        return futureTime > 0 ? futureTime : 0
     } else {
         return 0
     }

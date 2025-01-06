@@ -70,4 +70,27 @@ describe('Delayed Job Tests', () => {
         await new Promise(r => setTimeout(r, 2200))
         expect(executed.length).toBe(1)
     })
+
+    it('should handle a future date delay', async () => {
+        const executed: boolean[] = []
+        const testModule = {
+            test: {
+                dateDelayJob: () => {
+                    executed.push(true)
+                }
+            }
+        }
+        createWorker(jobDbConnection, [{ id: 'test', module: testModule.test }], DEFAULT_QUEUE, true, 100, 0)
+        const futureDate = new Date(Date.now() + 3000) // 3 seconds from now
+        const job = createJobHandler<typeof testModule>({ delay: futureDate })
+        await job.test.dateDelayJob()
+
+        // Job should not execute before futureDate
+        await new Promise(r => setTimeout(r, 1500))
+        expect(executed.length).toBe(0)
+
+        // After futureDate passes
+        await new Promise(r => setTimeout(r, 2000))
+        expect(executed.length).toBe(1)
+    })
 })

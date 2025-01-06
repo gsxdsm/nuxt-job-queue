@@ -209,12 +209,21 @@ export default class Queue {
 
     }
 
-    removeCronJob(name: string): void {
+    removeJob(id: number): void {
+        try {
+            const stmt = this.db.prepare(`DELETE FROM ${this.table} WHERE id = ?`)
+            stmt.run(id)
+        } catch (e) {
+            console.log(e)
+        }
+    }
+
+    removeCronJobNamed(name: string): void {
         const stmt = this.db.prepare(`DELETE FROM ${this.table} WHERE name = ? AND cron IS NOT NULL`)
         stmt.run(name)
     }
 
-    removeJob(name: string): void {
+    removeJobsNamed(name: string): void {
         const stmt = this.db.prepare(`DELETE FROM ${this.table} WHERE name = ?`)
         stmt.run(name)
     }
@@ -239,6 +248,30 @@ export default class Queue {
     removeAllCancelledJobs(): void {
         const stmt = this.db.prepare(`DELETE FROM ${this.table} WHERE status = '${Job.CANCELLED}'`)
         stmt.run()
+    }
+
+    getJobsWithStatus(status: string): Job[] {
+        const stmt = this.db.prepare(`SELECT * FROM ${this.table} WHERE status = ?`)
+        const rows = stmt.all(status)
+        return rows.map((row: any) => this.job(row))
+    }
+
+    getJob(name: string): Job {
+        const stmt = this.db.prepare(`SELECT * FROM ${this.table} WHERE name = ?`)
+        const row = stmt.get(name)
+        return this.job(row)
+    }
+
+    getCronJob(): Job {
+        const stmt = this.db.prepare(`SELECT * FROM ${this.table} WHERE cron IS NOT NULL`)
+        const row = stmt.get()
+        return this.job(row)
+    }
+
+    getCronJobs(): Job[] {
+        const stmt = this.db.prepare(`SELECT * FROM ${this.table} WHERE cron IS NOT NULL`)
+        const rows = stmt.all()
+        return rows.map((row: any) => this.job(row))
     }
 }
 

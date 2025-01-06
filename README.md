@@ -2,6 +2,13 @@
 
 `nuxt-job-queue` is a self contained job queue for Nuxt. You can use it to run background/scheduled/delayed jobs (functions) in your Nuxt app as well as run cron jobs. It uses a self-contained sqlite database to store the jobs and is designed to be as simple as possible to use. You can run worker processes as part of the Nitro server (for traditional servers), or using Nitro tasks which can be run in a serverless environment. It does not require redis or any other external dependencies. If you need a more robust solution, you should look at [BullMQ](https://docs.bullmq.io/) or [nuxt-concierge](https://github.com/genu/nuxt-concierge).
 
+## Features
+- Self-contained SQLite-based job queue.
+- Supports delayed, scheduled, and recurring jobs (cron jobs).
+- Easily configure timeouts and retries with linear or exponential backoff.
+- Works in both traditional and serverless (Nitro tasks) environments.
+- Minimal setup required with automatic job discovery.
+
 ## Install
 
 ```bash
@@ -67,7 +74,7 @@ You can pass custom options to the job function using the `options` parameter. T
 ```ts
 export interface JobOptions {
   cron?: string // A cron expression that defines the schedule for the job.
-  delay?: number | string // The delay before the job is executed, can be a number (milliseconds) or a string (e.g., '5m' for 5 minutes).
+  delay?: number | string // The delay before the job is executed, can be a number (milliseconds), a string (e.g., '5m' for 5 minutes), or a Date object (in the future - the job will be scheduled to run at that time).
   timeout?: number // The maximum time allowed for the job to complete, can be a number (milliseconds) or a string (e.g., '5m' for 5 minutes).
   priority?: number // The priority of the job, with higher numbers indicating higher priority.
   retry?: {

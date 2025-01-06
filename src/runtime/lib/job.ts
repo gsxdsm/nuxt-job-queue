@@ -15,7 +15,7 @@ export interface Retry {
 
 /**
  * @property {string} [cron] - A cron expression that defines the schedule for the job.
- * @property {number | string} [delay] - The delay before the job is executed, can be a number (milliseconds) or a string (e.g., '5m' for 5 minutes).
+ * @property {number | string} [delay] - The delay before the job is executed, can be a number (milliseconds), a string (e.g., '5m' for 5 minutes), or a Date in the future.
  * @property {number} [timeout] - The maximum time allowed for the job to complete, can be a number (milliseconds) or a string (e.g., '5m' for 5 minutes).
  * @property {number} [priority] - The priority of the job, with higher numbers indicating higher priority.
  * @property {Object} [retry] - Configuration for retrying the job if it fails.
@@ -26,7 +26,7 @@ export interface Retry {
 
 export interface JobOptions {
     cron?: string
-    delay?: number | string
+    delay?: number | string | Date
     timeout?: number | string
     priority?: number
     retry?: Retry
@@ -103,7 +103,6 @@ export default class Job extends EventEmitter {
                 this.data.id = row.id
             }
         }
-
 
         // If there is an id, update; if not, insert
         const insertOrUpdateSql = `INSERT OR REPLACE INTO ${this.table} (id, name, params, queue, retry, ` +
