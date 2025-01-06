@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest'
 import Connection from '../src/runtime/lib/connection'
 import { DEFAULT_QUEUE, CRON_QUEUE, EVERY } from '../src/runtime/lib/enum'
-import { createQueues, createJobHandler, createWorker, getDefaultJobQueue, getCronJobQueue } from '../src/runtime/server'
+import { createQueues, createJobHandler, createWorker, getDefaultJobQueue, getCronJobQueue, stopAllWorkers } from '../src/runtime/server'
 import fs from 'fs'
 import path from 'path'
 
@@ -18,9 +18,16 @@ describe('Job Queue Tests', async () => {
         createQueues(jobDbConnection)
     })
 
+
     afterAll(() => {
         if (fs.existsSync(TEST_DB_PATH)) {
             fs.unlinkSync(TEST_DB_PATH)
+        }
+        if (fs.existsSync(`${TEST_DB_PATH}-shm`)) {
+            fs.unlinkSync(`${TEST_DB_PATH}-shm`)
+        }
+        if (fs.existsSync(`${TEST_DB_PATH}-wal`)) {
+            fs.unlinkSync(`${TEST_DB_PATH}-wal`)
         }
     })
 
@@ -64,7 +71,7 @@ describe('Job Queue Tests', async () => {
         const job = createJobHandler<typeof testModule>({
             retry: {
                 count: 3,
-                delay: 500,
+                delay: 100,
                 strategy: 'linear'
             }
         })
@@ -73,7 +80,7 @@ describe('Job Queue Tests', async () => {
         createWorker(jobDbConnection, [{ id: 'test', module: testModule.test }], DEFAULT_QUEUE, true, 100, 0)
 
         // Wait for retries
-        await new Promise(r => setTimeout(r, 5000))
+        await new Promise(r => setTimeout(r, 1000))
         expect(attempts).toBe(3)
     })
 
@@ -92,11 +99,12 @@ describe('Job Queue Tests', async () => {
         })
         await job.test.scheduleCronJob()
 
-        createWorker(jobDbConnection, [{ id: 'test', module: testModule.test }], CRON_QUEUE, true, 100, 0)
+        const worker = createWorker(jobDbConnection, [{ id: 'test', module: testModule.test }], CRON_QUEUE, true, 100, 0)
 
         // Wait for multiple cron executions
-        await new Promise(r => setTimeout(r, 2500))
+        await new Promise(r => setTimeout(r, 2300))
         expect(cronExecutions).toBeGreaterThan(1)
+        worker.stop()
     })
 
     it('should respect job priorities', async () => {
@@ -110,16 +118,16 @@ describe('Job Queue Tests', async () => {
         }
 
         // Create jobs with different priorities
-        const job = createJobHandler<typeof testModule>({ priority: 1 })
-        await job.test.priorityJob(1)
+        const job = createJobHandler<typeof testModule>({ timeout: 500, priority: 0 })
+        await job.test.priorityJob(0)
 
-        const highPriorityJob = createJobHandler<typeof testModule>({ priority: 0 })
-        await highPriorityJob.test.priorityJob(0)
+        const highPriorityJob = createJobHandler<typeof testModule>({ timeout: 500, priority: 1 })
+        await highPriorityJob.test.priorityJob(1)
 
         createWorker(jobDbConnection, [{ id: 'test', module: testModule.test }], DEFAULT_QUEUE, true, 100, 0)
 
         // Wait for jobs to complete
-        await new Promise(r => setTimeout(r, 500))
-        expect(executionOrder).toEqual([0, 1])
+        await new Promise(r => setTimeout(r, 1000))
+        expect(executionOrder).toEqual([1, 0])
     })
 })

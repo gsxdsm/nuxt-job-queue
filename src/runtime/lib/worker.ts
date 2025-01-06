@@ -172,7 +172,7 @@ export class Worker extends EventEmitter {
         if (!func) {
             callback(new Error('No callback registered for `' + data.name + '`'))
         } else {
-            func(JSON.parse(data.params), callback)
+            func(data.params, callback)
         }
     }
 

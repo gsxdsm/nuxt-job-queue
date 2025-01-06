@@ -134,41 +134,52 @@ export default class Queue {
                 }
                 querySql += ` and name in (${names})`
             }
-            querySql += ` ORDER BY priority DESC, id ASC;`
+            querySql += ` ORDER BY priority DESC, id ASC LIMIT 1;`
 
             const stmt = this.db.prepare(querySql)
-            const rows = stmt.all()
-            if (rows.length === 0) {
+            const row = stmt.get()
+            if (row === undefined) {
                 return callback()
             }
-            rows.forEach((row: any) => {
-                const id = row.id
-                if (!id) {
-                    return callback()
-                }
-                if (row.cron && row.cron !== '') {
-                    const cron = new Cron(row.cron)
-                    const nextRun = cron.nextRun()
-                    if (nextRun) {
-                        const updateSql = `update ${this.table} set delay = ${nextRun.getTime()} where id = ${id} `
-                        this.db.exec(updateSql)
-                        callback(null, self.job(Object.assign(row, { nextRun })))
-                    } else {
-                        throw new Error('Invalid cron expression')
-                    }
-                } else {
-                    const newStatus = Job.DEQUEUED
-                    const dequeued = Date.now()
-                    const updateSql = `update ${this.table} set status = '${newStatus}', dequeued=${dequeued} where id = ${id} `
 
+            const id = row.id
+            if (!id) {
+                return callback()
+            }
+            if (row.cron && row.cron !== '') {
+                const cron = new Cron(row.cron)
+                const nextRun = cron.nextRun()
+                if (nextRun) {
+                    const updateSql = `update ${this.table} set delay = ${nextRun.getTime()} where id = ${id} `
                     this.db.exec(updateSql)
-                    callback(null, self.job(Object.assign(row, { status: newStatus, dequeued })))
+                    this.deserializeJobData(row)
+                    callback(null, self.job(Object.assign(row, { nextRun })))
+                } else {
+                    throw new Error('Invalid cron expression')
                 }
-            })
+            } else {
+                const newStatus = Job.DEQUEUED
+                const dequeued = Date.now()
+                const updateSql = `update ${this.table} set status = '${newStatus}', dequeued=${dequeued} where id = ${id} `
+
+                this.db.exec(updateSql)
+                this.deserializeJobData(row)
+                callback(null, self.job(Object.assign(row, { status: newStatus, dequeued })))
+            }
+
 
         } catch (err) {
             console.log("Error!!!:", err)
             callback(err as Error)
+        }
+    }
+
+    private deserializeJobData(row: any) {
+        if (row.params && typeof row.params === 'string') {
+            row.params = JSON.parse(row.params)
+        }
+        if (row.retry && typeof row.retry === 'string') {
+            row.retry = JSON.parse(row.retry)
         }
     }
 

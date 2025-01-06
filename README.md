@@ -69,7 +69,7 @@ export interface JobOptions {
   cron?: string // A cron expression that defines the schedule for the job.
   delay?: number | string // The delay before the job is executed, can be a number (milliseconds) or a string (e.g., '5m' for 5 minutes).
   timeout?: number // The maximum time allowed for the job to complete, can be a number (milliseconds) or a string (e.g., '5m' for 5 minutes).
-  priority?: number // The priority of the job, with higher numbers indicating lower priority.
+  priority?: number // The priority of the job, with higher numbers indicating higher priority.
   retry?: {
     count?: number // The number of times to retry the job if it fails.
     delay?: number | string // The delay between retries, can be a number (milliseconds) or a string (e.g., '5m' for 5 minutes).
