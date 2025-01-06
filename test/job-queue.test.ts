@@ -1,12 +1,13 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import Connection from '../src/runtime/lib/connection'
 import { DEFAULT_QUEUE, CRON_QUEUE, EVERY } from '../src/runtime/lib/enum'
-import { createQueues, createJobHandler, createWorker, getDefaultJobQueue, getCronJobQueue, stopAllWorkers } from '../src/runtime/server'
+import { createQueues, createJobHandler, createWorker, getDefaultJobQueue, getCronJobQueue } from '../src/runtime/server'
 import fs from 'fs'
 import path from 'path'
 
-let jobDbConnection: Connection
 const TEST_DB_PATH = './test/data/job-queue-test.sqlite'
+let jobDbConnection: Connection
+
 describe('Job Queue Tests', async () => {
     beforeAll(async () => {
         // Setup test database
@@ -35,6 +36,7 @@ describe('Job Queue Tests', async () => {
         expect(getDefaultJobQueue()).toBeDefined()
         expect(getCronJobQueue()).toBeDefined()
     })
+
 
     it('should enqueue and process a basic job', async () => {
         let jobCompleted = false

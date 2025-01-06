@@ -1,6 +1,37 @@
 //Based off of https://github.com/sinkhaha/node-sqlite-queue
 import { EventEmitter } from 'events'
 
+/**
+ * @property {number} [count] - The number of times to retry the job if it fails.
+ * @property {number | string} [delay] - The delay between retries, can be a number (milliseconds) or a string (e.g., '5m' for 5 minutes).
+ * @property {'linear' | 'exponential'} [strategy] - The strategy for retrying the job, either 'linear' or 'exponential'.
+ */
+
+export interface Retry {
+    count?: number
+    delay?: number | string
+    strategy?: 'linear' | 'exponential'
+}
+
+/**
+ * @property {string} [cron] - A cron expression that defines the schedule for the job.
+ * @property {number | string} [delay] - The delay before the job is executed, can be a number (milliseconds) or a string (e.g., '5m' for 5 minutes).
+ * @property {number} [timeout] - The maximum time allowed for the job to complete, can be a number (milliseconds) or a string (e.g., '5m' for 5 minutes).
+ * @property {number} [priority] - The priority of the job, with higher numbers indicating higher priority.
+ * @property {Object} [retry] - Configuration for retrying the job if it fails.
+ * @property {number} [retry.count] - The number of times to retry the job if it fails.
+ * @property {number | string} [retry.delay] - The delay between retries, can be a number (milliseconds) or a string (e.g., '5m' for 5 minutes).
+ * @property {'linear' | 'exponential'} [retry.strategy] - The strategy for retrying the job, either 'linear' or 'exponential'.
+ */
+
+export interface JobOptions {
+    cron?: string
+    delay?: number | string
+    timeout?: number | string
+    priority?: number
+    retry?: Retry
+}
+
 interface JobData {
     id?: number
     name?: string

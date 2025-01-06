@@ -1,21 +1,15 @@
 //Based off of https://github.com/sinkhaha/node-sqlite-queue
 import { Cron } from 'Croner'
-import Job from './job'
+import Job, { type JobOptions } from './job'
 import { parseTimeout, parseRetry, parseDelay } from './utils'
 import { TABLE_NAME } from './enum'
-
 
 export interface QueueOptions {
     table?: string
     universal?: boolean
     index?: boolean
-    retry?: any
-    timeout?: number | string
     minPriority?: number
     callbacks?: Record<string, any>
-    delay?: number | string
-    priority?: number
-    cron?: string
 }
 
 export default class Queue {
@@ -38,8 +32,6 @@ export default class Queue {
         options || (options = {})
         options.table || (options.table = TABLE_NAME)
         options.universal || (options.universal = false)
-        options.delay = parseDelay(options.delay)
-        options.timeout = parseTimeout(options.timeout)
 
         this.name = name || 'default'
         this.options = options
@@ -75,7 +67,7 @@ export default class Queue {
     enqueue(
         name: string,
         params: any,
-        options: QueueOptions,
+        options: JobOptions,
         callback: (err: Error | null, job?: Job) => void
     ): void {
         if (!callback && typeof options === 'function') {
@@ -92,14 +84,13 @@ export default class Queue {
             queue: this.name,
             retry: parseRetry(options.retry),
             timeout: parseTimeout(options.timeout),
-            delay: parseDelay(options.delay),
+            delay: Date.now() + parseDelay(options.delay),
             priority: options.priority,
             cron: options.cron,
         })
 
         job.enqueue(callback)
     }
-
 
     dequeue(
         options: QueueOptions,
@@ -115,7 +106,6 @@ export default class Queue {
                     callback = () => { }
                 }
             }
-            options.delay = parseDelay(options.delay)
 
             // Find all tasks
             let querySql = `select * from ${this.table} where status = '${Job.QUEUED}' and delay <= ${Date.now()}`

@@ -22,6 +22,12 @@ describe('Delayed Job Tests', () => {
         if (fs.existsSync(TEST_DB_PATH)) {
             fs.unlinkSync(TEST_DB_PATH)
         }
+        if (fs.existsSync(`${TEST_DB_PATH}-shm`)) {
+            fs.unlinkSync(`${TEST_DB_PATH}-shm`)
+        }
+        if (fs.existsSync(`${TEST_DB_PATH}-wal`)) {
+            fs.unlinkSync(`${TEST_DB_PATH}-wal`)
+        }
     })
 
     it('should respect numeric delay values', async () => {
@@ -34,13 +40,12 @@ describe('Delayed Job Tests', () => {
             }
         }
 
-        const job = createJobHandler<typeof testModule>({ delay: 1000 })
+        createWorker(jobDbConnection, [{ id: 'test', module: testModule.test }], DEFAULT_QUEUE, true, 100, 0)
         const startTime = Date.now()
+        const job = createJobHandler<typeof testModule>({ delay: 1000 })
         await job.test.delayedJob()
 
-        createWorker(jobDbConnection, [{ id: 'test', module: testModule }], DEFAULT_QUEUE, true, 100, 0)
-
-        await new Promise(r => setTimeout(r, 5500))
+        await new Promise(r => setTimeout(r, 2000))
         expect(executionTimes[0]).toBeGreaterThan(startTime + 900) // Allow small margin
     })
 
@@ -54,15 +59,15 @@ describe('Delayed Job Tests', () => {
             }
         }
 
+        createWorker(jobDbConnection, [{ id: 'test', module: testModule.test }], DEFAULT_QUEUE, true, 100, 0)
+
         const job = createJobHandler<typeof testModule>({ delay: '2s' })
         await job.test.stringDelayJob()
-
-        createWorker(jobDbConnection, [{ id: 'test', module: testModule }], DEFAULT_QUEUE, true, 100, 0)
 
         await new Promise(r => setTimeout(r, 1000))
         expect(executed.length).toBe(0)
 
-        await new Promise(r => setTimeout(r, 1500))
+        await new Promise(r => setTimeout(r, 2200))
         expect(executed.length).toBe(1)
     })
 })

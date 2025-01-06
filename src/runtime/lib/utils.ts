@@ -1,11 +1,6 @@
-
 //Based off of https://github.com/sinkhaha/node-sqlite-queue
 import parse from 'parse-duration'
-interface Retry {
-    count: number
-    delay?: number | string
-    strategy?: string
-}
+import { type Retry } from './job'
 
 export function parseTimeout(timeout: number | string | undefined): number | undefined {
     return timeout === undefined
@@ -23,7 +18,7 @@ export function parseRetry(retry: Retry | undefined): Retry | undefined {
     }
 
     const result = {
-        count: parseInt(retry.count.toString(), 10)
+        count: retry.count ? parseInt(retry.count.toString(), 10) : 0
     }
     retry.delay = parseDelay(retry.delay)
     if (retry.delay !== undefined) {
@@ -37,10 +32,12 @@ export function parseRetry(retry: Retry | undefined): Retry | undefined {
     return result
 }
 
-export function parseDelay(delay: number | string | undefined): number | undefined {
+export function parseDelay(delay: number | string | undefined): number {
     if (delay && typeof delay === 'string') {
         return parse(delay) || 0
     } else if (delay && typeof delay === 'number') {
         return delay
+    } else {
+        return 0
     }
 }
