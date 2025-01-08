@@ -3,7 +3,7 @@
 `nuxt-job-queue` is a self contained job queue for Nuxt. You can use it to run background/scheduled/delayed jobs (functions) in your Nuxt app as well as run cron jobs. It uses a self-contained sqlite database to store the jobs and is designed to be as simple as possible to use. You can run worker processes as part of the Nitro server (for traditional servers), or using Nitro tasks which can be run in a serverless environment. It does not require redis or any other external dependencies. If you need a more robust solution, you should look at [BullMQ](https://docs.bullmq.io/) or [nuxt-concierge](https://github.com/genu/nuxt-concierge).
 
 ## Features
-- Self-contained SQLite-based job queue.
+- Self-contained Nitro db (db0) based job queue.
 - Supports delayed, scheduled, and recurring jobs (cron jobs).
 - Easily configure timeouts and retries with linear or exponential backoff.
 - Works in both traditional and serverless (Nitro tasks) environments.
@@ -49,19 +49,34 @@ The `server/job` part of the path informs the module that this code should be ru
 
 ### Scheduled Jobs (crons)
 
-You can use the `cron` parameter in the job option to schedule a job to run at a specific time. The cron syntax is the same as the [cron package](https://www.npmjs.com/package/cron). You can also use the `EVERY` enum (automatically imported) for a set of common intervals.
+You can use the `cron` parameter in the job option to schedule a job to run and repeat at a specific time/interval. The cron syntax is the same as the [cron package](https://www.npmjs.com/package/cron). You can also use the `EVERY` enum (automatically imported) for a set of common intervals.
 
 ```ts
+// server/scheduleEmails.ts
+export function scheduleEmails() {
+  // Schedule the sendEmails job to run every hour
+  // Several jobs calling the same function can be scheduled if they have different parameters
+  await job({
+    cron: EVERY.HOUR, //or "0 0-23/1 * * *" see lib/enum.ts for more options
+  }).email.sendEmails();
+}
+```
 
-You can schedule cron jobs in `server/cron/**/*.{ts,js,mjs}` files by exporting a default function. All default exports in the `server/cron` directory will be run on startup.
+You can also schedule cron jobs in `server/cron/**/*.{ts,js,mjs}` files by exporting a default function that calls `defineCron`. All default exports in the `server/cron` directory will be run on startup.
 
 ```ts
 // server/cron/sendEmails.ts
-
-export default function() {
-  job({
-    cron: EVERY.HOUR, //or "0 0-23/1 * * *" see lib/enum.ts for more options
-  }).email.sendEmails();
+export default function buildCron() {
+    // Setup a cron job named "send emails" that runs every hour
+    // Only one cron job with the same name can be active at a time
+    defineCron({
+        name: "send-emails",
+        cron: EVERY.HOUR, //or "0 0-23/1 * * *" see lib/enum.ts for more options
+    },
+      () => {
+          console.log("Sending emails");
+      }
+    )
 }
 ```
 
@@ -91,14 +106,17 @@ The following config settings (and their defaults) are available:
 
 ```ts
   jobQueue: {
-    jobPaths: '/server/jobs/', // Path to the directory containing job files
+    jobPaths: ['/server/jobs/', '/server/rpc/'], // Path to the directory containing job files
     jobClientName: 'job', // Name of the job client
     cronPaths: '/server/cron/', // Path to the directory containing cron job files
-    dbFilePath: './data/db/jobqueue.sqlite', // Path to the SQLite database file
+    dbOptions: { // Nitro db / db0 options
+      connector: 'sqlite' as 'sqlite',
+      options: { name: 'jobqueue' }
+    },
+    workerPollInterval: 5000, // Interval in milliseconds for polling worker tasks
     nitroTasks: {
       runWorkersInTasks: false, // Whether to run workers in Nitro tasks
       workerTaskCron: '*/30 * * * * *', // Cron expression for worker tasks
-      workerPollInterval: 5000, // Interval in milliseconds for polling worker tasks
     },
     defaults: {
       job: {
@@ -132,12 +150,9 @@ By setting `runWorkersInTasks` to `true`, you can run the worker processes in [N
     nitroTasks: {
       runWorkersInTasks: true,
       workerTaskCron: '* * * * *',
-      workerPollInterval: 5000,
     },
   }
 ```
-
-
 
 ## Why this module
 Setting up background jobs, scheduling tasks, and managing retries can be cumbersome and often requires external dependencies like Redis.

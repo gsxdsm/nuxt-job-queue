@@ -58,8 +58,9 @@ Network Trash Folder
 Temporary Items
 .apdisk
 
-*.db
+*.data/*
 .vscode/launch.json
 
 test/data/*
 data/*
+.data/jobqueue.sqlite3-wal

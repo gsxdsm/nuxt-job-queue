@@ -1,5 +1,6 @@
 //Based off of https://github.com/sinkhaha/node-sqlite-queue
 import { EventEmitter } from 'events'
+import { type Database, type Primitive } from "db0"
 
 /**
  * @property {number} [count] - The number of times to retry the job if it fails.
@@ -56,11 +57,11 @@ export default class Job extends EventEmitter {
     static FAILED = 'failed'
     static CANCELLED = 'cancelled'
 
-    db: any
+    db: Database
     table: string
     data: JobData
 
-    constructor(db: any, table: string, data?: JobData) {
+    constructor(db: Database, table: string, data?: JobData) {
         super()
 
         this.db = db
@@ -76,7 +77,7 @@ export default class Job extends EventEmitter {
     }
 
 
-    enqueue(callback: (err: Error | null, job?: Job) => void) {
+    async enqueue(callback: (err: Error | null, job?: Job) => void) {
         if (this.data.delay === undefined) {
             this.data.delay = Date.now()
         }
@@ -88,17 +89,17 @@ export default class Job extends EventEmitter {
         this.data.status = Job.QUEUED
         this.data.enqueued = Date.now()
 
-        this.save(callback)
+        await this.save(callback)
     }
 
-    save(callback: (err: Error | null, job?: Job) => void) {
+    async save(callback: (err: Error | null, job?: Job) => void) {
         const self = this
 
         if (this.data.cron) {
             //if we have a cron, try to find existing entry
             const selectSql = `SELECT id FROM ${this.table} WHERE name = ? AND params = ? AND queue = ?`
             const stmt = this.db.prepare(selectSql)
-            const row = stmt.get(this.data.name, JSON.stringify(this.data.params), this.data.queue)
+            const row = await stmt.get(this.data.name, JSON.stringify(this.data.params), this.data.queue) as { id?: number }
             if (row) {
                 this.data.id = row.id
             }
@@ -106,16 +107,16 @@ export default class Job extends EventEmitter {
 
         // If there is an id, update; if not, insert
         const insertOrUpdateSql = `INSERT OR REPLACE INTO ${this.table} (id, name, params, queue, retry, ` +
-            ` timeout, delay, cron, priority, status, enqueued,dequeued,ended,result) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+            ` timeout, delay, cron, priority, status, enqueued,dequeued,ended,result) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) Returning RowId`
 
         const { id, name, params = '', queue, retry, timeout, delay, cron, priority, status, enqueued, dequeued, ended, result } = this.data
-        const values = [id, name, typeof params === 'object' ? JSON.stringify(params) : params, queue, typeof retry == 'object' ? JSON.stringify(retry) : retry, timeout, delay, cron, priority, status, enqueued, dequeued, ended, result]
+        const values: Primitive[] = [id, name, typeof params === 'object' ? JSON.stringify(params) : params, queue, typeof retry == 'object' ? JSON.stringify(retry) : retry, timeout, delay, cron, priority, status, enqueued, dequeued, ended, result]
 
         const stmt = this.db.prepare(insertOrUpdateSql)
-        const lastId = stmt.run(values)
+        const lastId = await stmt.get(...values) as { id?: number }
 
         if (self.data.id == undefined && lastId) {
-            self.data.id = lastId.lastInsertRowid
+            self.data.id = lastId.id
         }
 
         callback && callback(null, self)

@@ -3,19 +3,16 @@ import Connection from '../src/runtime/lib/connection'
 import { DEFAULT_QUEUE, CRON_QUEUE, EVERY } from '../src/runtime/lib/enum'
 import { createQueues, createJobHandler, createWorker, getDefaultJobQueue, getCronJobQueue } from '../src/runtime/server'
 import fs from 'fs'
-import path from 'path'
+import { createDatabase } from "db0"
+import sqlite from "db0/connectors/better-sqlite3"
 
 const TEST_DB_PATH = './test/data/job-queue-test.sqlite'
 let jobDbConnection: Connection
+const db = createDatabase(sqlite({ path: TEST_DB_PATH }))
 
 describe('Job Queue Tests', async () => {
-    beforeAll(async () => {
-        // Setup test database
-        const dir = path.dirname(TEST_DB_PATH)
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true })
-        }
-        jobDbConnection = new Connection(TEST_DB_PATH)
+    beforeAll(() => {
+        jobDbConnection = new Connection(db)
         createQueues(jobDbConnection)
     })
 

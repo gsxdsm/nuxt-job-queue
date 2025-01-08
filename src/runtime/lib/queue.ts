@@ -3,7 +3,7 @@ import { Cron } from 'Croner'
 import Job, { type JobOptions } from './job'
 import { parseTimeout, parseRetry, parseDelay } from './utils'
 import { TABLE_NAME } from './enum'
-
+import { type Database } from "db0"
 export interface QueueOptions {
     table?: string
     universal?: boolean
@@ -16,7 +16,7 @@ export default class Queue {
     name: string
     options: QueueOptions
     connection: any
-    db: any
+    db: Database
     table: string
 
     constructor(
@@ -64,12 +64,12 @@ export default class Queue {
         }
     }
 
-    enqueue(
+    async enqueue(
         name: string,
         params: any,
         options: JobOptions,
         callback: (err: Error | null, job?: Job) => void
-    ): void {
+    ): Promise<void> {
         if (!callback && typeof options === 'function') {
             if (typeof options === 'function') {
                 callback = options
@@ -89,13 +89,13 @@ export default class Queue {
             cron: options.cron,
         })
 
-        job.enqueue(callback)
+        await job.enqueue(callback)
     }
 
-    dequeue(
+    async dequeue(
         options: QueueOptions,
         callback: (err?: Error | null | undefined, job?: Job) => void
-    ): void {
+    ) {
         const self = this
         try {
             if (callback === undefined) {
@@ -118,17 +118,14 @@ export default class Queue {
             if (options.callbacks !== undefined) {
                 const callback_names = Object.keys(options.callbacks)
 
-                let names = ``
-                for (let i = 0; i < callback_names.length; i++) {
-                    names += `'${callback_names[i]}'`
-                }
+                const names = callback_names.map((name) => `'${name}'`).join(', ')
                 querySql += ` and name in (${names})`
             }
             querySql += ` ORDER BY priority DESC, id ASC LIMIT 1;`
 
             const stmt = this.db.prepare(querySql)
-            const row = stmt.get()
-            if (row === undefined) {
+            const row = await stmt.get() as { id?: number; cron?: string }
+            if (row === undefined || row === null) {
                 return callback()
             }
 
@@ -141,7 +138,7 @@ export default class Queue {
                 const nextRun = cron.nextRun()
                 if (nextRun) {
                     const updateSql = `update ${this.table} set delay = ${nextRun.getTime()} where id = ${id} `
-                    this.db.exec(updateSql)
+                    await this.db.exec(updateSql)
                     this.deserializeJobData(row)
                     callback(null, self.job(Object.assign(row, { nextRun })))
                 } else {
@@ -152,7 +149,7 @@ export default class Queue {
                 const dequeued = Date.now()
                 const updateSql = `update ${this.table} set status = '${newStatus}', dequeued=${dequeued} where id = ${id} `
 
-                this.db.exec(updateSql)
+                await this.db.exec(updateSql)
                 this.deserializeJobData(row)
                 callback(null, self.job(Object.assign(row, { status: newStatus, dequeued })))
             }
@@ -172,10 +169,10 @@ export default class Queue {
         }
     }
 
-    get(
+    async get(
         id: number,
         callback: (err?: Error, job?: Job) => void
-    ): void {
+    ): Promise<void> {
         try {
             const self = this
 
@@ -184,7 +181,7 @@ export default class Queue {
                 querySql += ` queue = '${this.name}'`
             }
             const stmt = this.db.prepare(querySql)
-            const rows = stmt.get()
+            const rows = await stmt.all() as any[]
 
             rows.map((row: any) => {
                 const job = new Job(self.db, self.table, row)
@@ -193,84 +190,85 @@ export default class Queue {
         } catch (err) {
             callback(err as Error)
         }
+        return Promise.resolve()
     }
 
     job(data: any): Job {
         return new Job(this.db, this.table, data)
     }
 
-    removeAllCronJobs(): void {
+    async removeAllCronJobs(): Promise<void> {
         try {
             const stmt = this.db.prepare(`DELETE FROM ${this.table} WHERE cron IS NOT NULL`)
-            stmt.run()
+            await stmt.run()
         } catch (e) {
             console.log(e)
         }
 
     }
 
-    removeJob(id: number): void {
+    async removeJob(id: number): Promise<void> {
         try {
             const stmt = this.db.prepare(`DELETE FROM ${this.table} WHERE id = ?`)
-            stmt.run(id)
+            await stmt.run(id)
         } catch (e) {
             console.log(e)
         }
     }
 
-    removeCronJobNamed(name: string): void {
+    async removeCronJobNamed(name: string): Promise<void> {
         const stmt = this.db.prepare(`DELETE FROM ${this.table} WHERE name = ? AND cron IS NOT NULL`)
-        stmt.run(name)
+        await stmt.run(name)
     }
 
-    removeJobsNamed(name: string): void {
+    async removeJobsNamed(name: string): Promise<void> {
         const stmt = this.db.prepare(`DELETE FROM ${this.table} WHERE name = ?`)
-        stmt.run(name)
+        await stmt.run(name)
     }
 
-    removeAllJobs(): void {
+    async removeAllJobs(): Promise<void> {
         const stmt = this.db.prepare(`DELETE FROM ${this.table}`)
-        stmt.run()
+        await stmt.run()
     }
 
-    removeAllCompletedJobs(): void {
+    async removeAllCompletedJobs(): Promise<void> {
         const stmt = this.db.prepare(`DELETE FROM ${this.table} WHERE status = '${Job.COMPLETE}'`)
-        stmt.run()
+        await stmt.run()
     }
-    removeAllFailedJobs(): void {
+    async removeAllFailedJobs(): Promise<void> {
         const stmt = this.db.prepare(`DELETE FROM ${this.table} WHERE status = '${Job.FAILED}'`)
         stmt.run()
     }
-    removeAllQueuedJobs(): void {
+    async removeAllQueuedJobs(): Promise<void> {
         const stmt = this.db.prepare(`DELETE FROM ${this.table} WHERE status = '${Job.QUEUED}'`)
-        stmt.run()
+        await stmt.run()
     }
-    removeAllCancelledJobs(): void {
+    async removeAllCancelledJobs(): Promise<void> {
         const stmt = this.db.prepare(`DELETE FROM ${this.table} WHERE status = '${Job.CANCELLED}'`)
-        stmt.run()
+        await stmt.run()
     }
 
-    getJobsWithStatus(status: string): Job[] {
+    async getJobsWithStatus(status: string): Promise<Job[]> {
         const stmt = this.db.prepare(`SELECT * FROM ${this.table} WHERE status = ?`)
-        const rows = stmt.all(status)
+        const rows = await stmt.all(status)
         return rows.map((row: any) => this.job(row))
     }
 
-    getJob(name: string): Job {
+    async getJob(name: string): Promise<Job> {
         const stmt = this.db.prepare(`SELECT * FROM ${this.table} WHERE name = ?`)
-        const row = stmt.get(name)
+        const row = await stmt.get(name)
         return this.job(row)
     }
 
-    getCronJob(): Job {
+    async getCronJob(): Promise<Job> {
         const stmt = this.db.prepare(`SELECT * FROM ${this.table} WHERE cron IS NOT NULL`)
-        const row = stmt.get()
+        const row = await stmt.get()
         return this.job(row)
     }
 
-    getCronJobs(): Job[] {
+    async getCronJobs(): Promise<Job[]> {
         const stmt = this.db.prepare(`SELECT * FROM ${this.table} WHERE cron IS NOT NULL`)
-        const rows = stmt.all()
+        const rows = await stmt.all()
         return rows.map((row: any) => this.job(row))
     }
 }

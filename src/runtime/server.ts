@@ -1,5 +1,5 @@
 import Connection from './lib/connection'
-import Job, { type JobOptions } from './lib/job'
+import Job, { type JobOptions, type Retry } from './lib/job'
 import { jobWorkers, type Worker } from './lib/worker'
 import Queue from './lib/queue'
 import { DEFAULT_QUEUE, CRON_QUEUE } from './lib/enum'
@@ -18,11 +18,11 @@ export function createJobHandler<T>(options: JobOptions) {
     get(_, module: string) {
       return new Proxy(() => { }, {
         get(_, func: string) {
-          return (...args: any[]) => {
+          return async (...args: any[]) => {
             //TODO: Eventually add support for per-priority queue
             const targetQueue = options.cron ? queues[CRON_QUEUE] : queues[DEFAULT_QUEUE]
             //const params = { function: func, args: args }
-            targetQueue.enqueue(`${module}.${func}`, args, options, function (err: Error | null, job?: Job) {
+            await targetQueue.enqueue(`${module}.${func}`, args, options, function (err: Error | null, job?: Job) {
               if (err) {
                 logger.error('error:', err)
               } else {
@@ -109,4 +109,37 @@ export function startWorker(queue: string) {
 
 export function startAllWorkers() {
   Object.values(jobWorkers).forEach(worker => worker.start())
+}
+
+export interface CronOptions {
+  name: string
+  cron: string
+  params?: any[]
+  timeout?: string | number
+  retry?: Retry
+}
+
+//const cronJobs: Record<string, CronFunction> = {}
+export async function defineCron(options: CronOptions, cronFunction: (...args: any) => void) {
+  const jobName = `_cron_${options.name}`
+  getCronJobQueue().removeCronJobNamed(jobName)
+  const targetQueue = queues[CRON_QUEUE]
+  jobWorkers[CRON_QUEUE].register({
+    [`_cron_${jobName}`]: async function (args: any[], callback: (arg0?: any, arg1?: any) => void) {
+      try {
+        await cronFunction(...args)
+        callback(null, args)
+      } catch (err) {
+        callback(err)
+      }
+    }
+  })
+  await targetQueue.enqueue(`_cron_${jobName}`,
+    options.params, options, async function (err: Error | null, job?: Job) {
+      if (err) {
+        logger.error('error:', err)
+      } else {
+        logger.debug('success:', job?.data)
+      }
+    })
 }

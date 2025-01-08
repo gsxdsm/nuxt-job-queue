@@ -1,11 +1,19 @@
-
 export default function buildCron() {
-    getCronJobQueue().removeAllCronJobs()
-    job({
-        cron: EVERY.FIVE_SECONDS
-    }).test.testJob({ name: 'CRON, every five seconds' })
+    // Setup a named CRON job
+    defineCron({
+        name: "test-cron",
+        cron: EVERY.FIVE_SECONDS,
+        params: ["myarg", 56]
+    },
+        (myarg: string, arg2: number) => {
+            console.log("CRON, every five seconds - ", myarg, arg2)
+        }
+    )
 
-    getCronJobQueue().getCronJobs().forEach(cronJob => {
-        console.log(`Cron job: ${cronJob.data.name} - ${cronJob.data.cron} - ${cronJob.data.params}`)
+    // Setup individual job with a cron parameter
+    job({
+        cron: EVERY.FIVE_SECONDS,
+    }).test.testJob({
+        name: "world"
     })
 }

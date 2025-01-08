@@ -1,5 +1,6 @@
 import {
   addServerImports,
+  addServerPlugin,
   addTemplate,
   createResolver,
   defineNuxtModule,
@@ -7,7 +8,7 @@ import {
 import fg from 'fast-glob'
 import defu from 'defu'
 import dedent from 'dedent'
-import { relative, resolve } from 'node:path'
+import { relative } from 'node:path'
 import * as pathe from 'pathe'
 import { createFilter } from '@rollup/pluginutils'
 import { getModuleId } from './runtime/transformer'
@@ -18,7 +19,11 @@ export interface ModuleOptions {
   jobPaths?: string | string[]
   cronPaths?: string | string[]
   jobClientName?: string
-  dbFilePath?: string
+  dbOptions?: {
+    connector?: 'sqlite' | 'postgresql' | 'pglite' | 'cloudflare-d1' | 'libsql' | 'libsql-node' | 'libsql-http' | 'libsql-web' | 'bun' | 'bun-sqlite' | 'planetscale'
+    options?: any
+    url?: string
+  }
   workerPollInterval?: number
   nitroTasks?: {
     runWorkersInTasks?: boolean
@@ -34,7 +39,7 @@ export interface ModuleOptions {
         delay?: number | string
         strategy?: string
       }
-    },
+    }
     cron?: {
       timeout?: number | string,
       priority?: number
@@ -54,10 +59,13 @@ export default defineNuxtModule<ModuleOptions>({
     version: '^3.3.0',
   },
   defaults: {
-    jobPaths: '/server/jobs/',
+    jobPaths: ['/server/jobs/', '/server/rpc/'],
     jobClientName: 'job',
     cronPaths: '/server/cron/',
-    dbFilePath: './data/db/jobqueue.sqlite',
+    dbOptions: {
+      connector: 'sqlite' as 'sqlite',
+      options: { name: 'jobqueue' }
+    },
     workerPollInterval: 5000,
     nitroTasks: {
       runWorkersInTasks: false,
@@ -86,21 +94,35 @@ export default defineNuxtModule<ModuleOptions>({
     }
   },
   async setup(options, nuxt) {
-    nuxt.options.runtimeConfig.jobQueue = defu(
-      nuxt.options.runtimeConfig.jobQueue,
-      options
-    )
+
+    const jobPaths = Array.isArray(options.jobPaths) ?
+      options.jobPaths.filter(Boolean) as string[] : [options.jobPaths].filter(Boolean) as string[]
+    const cronPaths = Array.isArray(options.cronPaths) ?
+      options.cronPaths.filter(Boolean) as string[] : [options.cronPaths].filter(Boolean) as string[]
+
+    nuxt.options.runtimeConfig.jobQueue = defu(nuxt.options.runtimeConfig.jobQueue, {
+      ...options,
+      jobPaths,
+      cronPaths
+    })
+
+    nuxt.options.nitro.experimental = {
+      ...nuxt.options.nitro.experimental,
+      database: true
+    }
+
+
+    nuxt.options.nitro.database = {
+      ...nuxt.options.nitro.database,
+      _jobqueue: {
+        ...options.dbOptions,
+      }
+    }
 
     const files: string[] = []
     const cronFiles: string[] = []
 
-    const jobPaths = Array.isArray(options.jobPaths)
-      ? options.jobPaths
-      : [options.jobPaths]
 
-    const cronPaths = Array.isArray(options.cronPaths)
-      ? options.cronPaths
-      : [options.cronPaths]
 
     jobPatterns = generatePatterns(jobPaths)
     cronPatterns = generatePatterns(cronPaths)
@@ -148,9 +170,10 @@ export default defineNuxtModule<ModuleOptions>({
           id: getModuleId(file, options.cronPaths!),
         }))
         return dedent`
-          import { createJobHandler, createQueues, createWorker, type JobOptions } from ${JSON.stringify(resolver.resolve(runtimeDir, 'server'))}
+          import { createJobHandler, createQueues, createWorker } from ${JSON.stringify(resolver.resolve(runtimeDir, 'server'))}
           import { DEFAULT_QUEUE, CRON_QUEUE } from ${JSON.stringify(resolver.resolve(runtimeDir, 'lib/enum'))}
           import Connection from ${JSON.stringify(resolver.resolve(runtimeDir, 'lib/connection'))}
+          import { type JobOptions } from ${JSON.stringify(resolver.resolve(runtimeDir, 'lib/job'))}
           import defu from 'defu'
 
           ${filesWithId
@@ -163,9 +186,8 @@ export default defineNuxtModule<ModuleOptions>({
           export type JobFunction = {
             ${filesWithId.map((i) => `${i.id}: typeof ${i.id}`).join('\n')}
           }
+            
           
-          const jobDbConnection = new Connection("${options.dbFilePath}")
-          createQueues(jobDbConnection)
 
           // Job function used to schedule jobs
           export const ${options.jobClientName} = (
@@ -194,31 +216,51 @@ export default defineNuxtModule<ModuleOptions>({
               return createJobHandler<JobFunction>(opts);
             }; 
 
-          // Run cron registration jobs
-          ${cronFilesWithId
-            .map((i) => `${i.id}.default()`)
-            .join('\n')}
-            
-          const filesWithId = [
-            ${filesWithId.map((i) => `{ id: '${i.id}', module: ${i.id} }`).join(', ')
+
+          export default function initJobQueue(){
+            const db = useDatabase("_jobqueue")  
+            const jobDbConnection = new Connection(db)
+            createQueues(jobDbConnection)
+            const filesWithId = [
+              ${filesWithId.map((i) => `{ id: '${i.id}', module: ${i.id} }`).join(', ')
           }]
 
-          createWorker(jobDbConnection, filesWithId, DEFAULT_QUEUE,
-            ${!options.nitroTasks!.runWorkersInTasks ? 'true' : 'false'}, 
-            ${options.workerPollInterval}, 0)
+            createWorker(jobDbConnection, filesWithId, DEFAULT_QUEUE,
+              ${!options.nitroTasks!.runWorkersInTasks ? 'true' : 'false'}, 
+              ${options.workerPollInterval}, 0)
 
-          // Register filesWithId and *not* cronFilesWithId - the actual jobs are in filesWithId
-          createWorker(jobDbConnection, filesWithId, CRON_QUEUE,
-            ${!options.nitroTasks!.runWorkersInTasks ? 'true' : 'false'}, 
-            ${options.workerPollInterval}, 0)
+            // Register filesWithId and *not* cronFilesWithId - the actual jobs are in filesWithId
+            createWorker(jobDbConnection, filesWithId, CRON_QUEUE,
+              ${!options.nitroTasks!.runWorkersInTasks ? 'true' : 'false'}, 
+              ${options.workerPollInterval}, 0)
+
+            // Run cron registration jobs
+            ${cronFilesWithId
+            .map((i) => `${i.id}.default()`)
+            .join('\n')}
+          }
+          
         `
       },
     })
 
+
     addServerImports([
+      {
+        name: 'initJobQueue',
+        from: handlerPath
+      },
       {
         name: options.jobClientName!,
         from: handlerPath,
+      },
+      {
+        name: 'defineCron',
+        from: resolver.resolve(runtimeDir, 'server'),
+      },
+      {
+        name: 'CronOptions',
+        from: resolver.resolve(runtimeDir, 'server'),
       },
       {
         name: 'getDefaultJobQueue',
@@ -239,11 +281,18 @@ export default defineNuxtModule<ModuleOptions>({
     ])
 
 
+    /*nuxt.hook('ready', async nuxt => {
+      require(resolver.resolve(nuxt.options.buildDir, 'job-handler')).initJobQueue()
+      //initJobQueue()
+    })*/
+
+    const { resolve } = createResolver(import.meta.url)
+    addServerPlugin(resolver.resolve(handlerPath))
+
     if (options.nitroTasks!.runWorkersInTasks) {
-      nuxt.options.nitro.experimental = {
-        ...nuxt.options.nitro.experimental,
-        tasks: true
-      }
+      nuxt.options.nitro.experimental ||= {}
+      nuxt.options.nitro.experimental.tasks = true
+
 
       nuxt.options.nitro.tasks = {
         ...nuxt.options.nitro.tasks,

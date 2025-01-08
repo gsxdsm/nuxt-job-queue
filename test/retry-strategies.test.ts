@@ -3,18 +3,16 @@ import Connection from '../src/runtime/lib/connection'
 import { DEFAULT_QUEUE } from '../src/runtime/lib/enum'
 import { createQueues, createJobHandler, createWorker } from '../src/runtime/server'
 import fs from 'fs'
-import path from 'path'
+import { createDatabase } from "db0"
+import sqlite from "db0/connectors/better-sqlite3"
 
 const TEST_DB_PATH = './test/data/retry-test.sqlite'
 let jobDbConnection: Connection
+const db = createDatabase(sqlite({ path: TEST_DB_PATH }))
 
 describe('Retry Strategy Tests', () => {
     beforeAll(() => {
-        const dir = path.dirname(TEST_DB_PATH)
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true })
-        }
-        jobDbConnection = new Connection(TEST_DB_PATH)
+        jobDbConnection = new Connection(db)
         createQueues(jobDbConnection)
     })
 

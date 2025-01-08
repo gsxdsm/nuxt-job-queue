@@ -2,18 +2,16 @@ import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import Connection from '../src/runtime/lib/connection'
 import { DEFAULT_QUEUE } from '../src/runtime/lib/enum'
 import fs from 'fs'
-import path from 'path'
+import { createDatabase } from "db0"
+import sqlite from "db0/connectors/better-sqlite3"
 
 const TEST_DB_PATH = './test/data/queue-lifecycle.sqlite'
 let connection: Connection
+const db = createDatabase(sqlite({ path: TEST_DB_PATH }))
 
 describe('Queue Lifecycle Tests', () => {
     beforeAll(() => {
-        const dir = path.dirname(TEST_DB_PATH)
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true })
-        }
-        connection = new Connection(TEST_DB_PATH)
+        connection = new Connection(db)
     })
 
     afterAll(() => {
@@ -33,7 +31,7 @@ describe('Queue Lifecycle Tests', () => {
 
         // Test job creation
         let completedJob
-        queue.enqueue('test', { foo: 'bar' }, {}, (err, job) => {
+        await queue.enqueue('test', { foo: 'bar' }, {}, (err, job) => {
             expect(err).toBeNull()
             expect(job?.data.status).toBe('queued')
             completedJob = job
@@ -50,7 +48,7 @@ describe('Queue Lifecycle Tests', () => {
         const queue = connection.queue(DEFAULT_QUEUE, {})
 
         let cancelledJob
-        queue.enqueue('test', {}, {}, (err, job) => {
+        await queue.enqueue('test', {}, {}, (err, job) => {
             expect(err).toBeNull()
             cancelledJob = job
         })
@@ -65,7 +63,7 @@ describe('Queue Lifecycle Tests', () => {
         const queue = connection.queue(DEFAULT_QUEUE, {})
 
         let failedJob
-        queue.enqueue('test', {}, {}, (err, job) => {
+        await queue.enqueue('test', {}, {}, (err, job) => {
             expect(err).toBeNull()
             failedJob = job
         })
