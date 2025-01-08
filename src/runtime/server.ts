@@ -2,7 +2,7 @@ import Connection from './lib/connection'
 import Job, { type JobOptions, type Retry } from './lib/job'
 import { jobWorkers, type Worker } from './lib/worker'
 import Queue from './lib/queue'
-import { DEFAULT_QUEUE, CRON_QUEUE } from './lib/enum'
+import { DEFAULT_QUEUE, CRON_QUEUE, CRON_NAME_PREFIX } from './lib/enum'
 import { consola } from "consola"
 
 const logger = consola.create({}).withTag("nuxt-job-queue")
@@ -114,18 +114,21 @@ export function startAllWorkers() {
 export interface CronOptions {
   name: string
   cron: string
-  params?: any[]
   timeout?: string | number
   retry?: Retry
+  params?: any[]
+  removeExisting?: boolean
 }
 
 //const cronJobs: Record<string, CronFunction> = {}
 export async function defineCron(options: CronOptions, cronFunction: (...args: any) => void) {
-  const jobName = `_cron_${options.name}`
-  getCronJobQueue().removeCronJobNamed(jobName)
+  const jobName = `${CRON_NAME_PREFIX}${options.name}`
+  if (options.removeExisting) {
+    await queues[CRON_QUEUE].removeCronJobNamed(jobName)
+  }
   const targetQueue = queues[CRON_QUEUE]
   jobWorkers[CRON_QUEUE].register({
-    [`_cron_${jobName}`]: async function (args: any[], callback: (arg0?: any, arg1?: any) => void) {
+    [`${jobName}`]: async function (args: any[], callback: (arg0?: any, arg1?: any) => void) {
       try {
         await cronFunction(...args)
         callback(null, args)
@@ -134,7 +137,7 @@ export async function defineCron(options: CronOptions, cronFunction: (...args: a
       }
     }
   })
-  await targetQueue.enqueue(`_cron_${jobName}`,
+  await targetQueue.enqueue(`${jobName}`,
     options.params, options, async function (err: Error | null, job?: Job) {
       if (err) {
         logger.error('error:', err)

@@ -1,6 +1,8 @@
 //Based off of https://github.com/sinkhaha/node-sqlite-queue
 import { EventEmitter } from 'events'
 import { type Database, type Primitive } from "db0"
+import { CRON_NAME_PREFIX } from './enum'
+import { Cron } from 'Croner'
 
 /**
  * @property {number} [count] - The number of times to retry the job if it fails.
@@ -97,17 +99,36 @@ export default class Job extends EventEmitter {
 
         if (this.data.cron) {
             //if we have a cron, try to find existing entry
-            const selectSql = `SELECT id FROM ${this.table} WHERE name = ? AND params = ? AND queue = ?`
+            let selectSql = `SELECT id FROM ${this.table} WHERE name = ? AND queue = ?`
+            const queryParams = [this.data.name, this.data.queue]
+            // When a CRON is defined using defineCron, the name is prefixed with '__cron_'
+            // When we define a cron on a job (rather than with defineCron) 
+            // we can have multiple CRONs with the same name but different params
+            if (!this.data.name?.startsWith(CRON_NAME_PREFIX)) {
+                selectSql += `AND params = ?`
+                queryParams.push(JSON.stringify(this.data.params))
+            }
+
             const stmt = this.db.prepare(selectSql)
-            const row = await stmt.get(this.data.name, JSON.stringify(this.data.params), this.data.queue) as { id?: number }
+            const row = await stmt.get(...queryParams) as { id?: number }
             if (row) {
                 this.data.id = row.id
             }
+
+            // Set the delay to the next cron time
+            const cron = new Cron(this.data.cron)
+            const nextRun = cron.nextRun()
+            if (nextRun) {
+                this.data.delay = nextRun.getTime()
+            } else {
+                throw new Error('Invalid cron expression')
+            }
+
         }
 
         // If there is an id, update; if not, insert
         const insertOrUpdateSql = `INSERT OR REPLACE INTO ${this.table} (id, name, params, queue, retry, ` +
-            ` timeout, delay, cron, priority, status, enqueued,dequeued,ended,result) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) Returning RowId`
+            ` timeout, delay, cron, priority, status, enqueued, dequeued, ended, result) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) Returning RowId`
 
         const { id, name, params = '', queue, retry, timeout, delay, cron, priority, status, enqueued, dequeued, ended, result } = this.data
         const values: Primitive[] = [id, name, typeof params === 'object' ? JSON.stringify(params) : params, queue, typeof retry == 'object' ? JSON.stringify(retry) : retry, timeout, delay, cron, priority, status, enqueued, dequeued, ended, result]

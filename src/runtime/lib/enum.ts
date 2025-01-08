@@ -6,6 +6,8 @@ export const DEFAULT_QUEUE = 'default'
 
 export const CRON_QUEUE = 'cron'
 
+export const CRON_NAME_PREFIX = '__cron_'
+
 // From https://github.com/nestjs/schedule
 export const EVERY = {
     SECOND: "* * * * * *",

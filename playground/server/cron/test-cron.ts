@@ -3,7 +3,7 @@ export default function buildCron() {
     defineCron({
         name: "test-cron",
         cron: EVERY.FIVE_SECONDS,
-        params: ["myarg", 56]
+        params: ["myarg", 56],
     },
         (myarg: string, arg2: number) => {
             console.log("CRON, every five seconds - ", myarg, arg2)
