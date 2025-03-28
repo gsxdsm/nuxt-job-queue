@@ -6,6 +6,8 @@ export default defineNuxtConfig({
 
   },
 
+  devtools: { enabled: true },
+
   sourcemap: {
     client: true,
   },

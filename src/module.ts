@@ -4,6 +4,8 @@ import {
   addTemplate,
   createResolver,
   defineNuxtModule,
+  addComponent,
+  addServerHandler
 } from '@nuxt/kit'
 import fg from 'fast-glob'
 import defu from 'defu'
@@ -303,6 +305,62 @@ export default defineNuxtModule<ModuleOptions>({
       nuxt.options.nitro.scheduledTasks = {
         ...nuxt.options.nitro.scheduledTasks,
         [options.nitroTasks!.workerTaskCron!]: ['_job:runner']
+      }
+    }
+
+    // Only add dashboard in development mode
+    if (nuxt.options.dev) {
+      // Register the JobQueueDashboard component
+      addComponent({
+        name: 'JobQueueDashboard',
+        filePath: resolver.resolve(runtimeDir, 'components/JobQueueDashboard.vue')
+      })
+
+      // Add API endpoints for job queue dashboard
+      addServerHandler({
+        route: '/api/_jobqueue/jobs',
+        handler: resolver.resolve(runtimeDir, 'server/api/jobs.get')
+      })
+
+      addServerHandler({
+        route: '/api/_jobqueue/jobs/:id/retry',
+        method: 'post',
+        handler: resolver.resolve(runtimeDir, 'server/api/jobs.retry')
+      })
+
+      addServerHandler({
+        route: '/api/_jobqueue/jobs/:id',
+        method: 'delete',
+        handler: resolver.resolve(runtimeDir, 'server/api/jobs.delete')
+      })
+
+      // Add dashboard page at /_jobqueue
+      nuxt.hook('pages:extend', (pages) => {
+        pages.push({
+          name: 'job-queue-dashboard',
+          path: '/_jobqueue',
+          file: resolver.resolve(runtimeDir, 'pages/dashboard.vue')
+        })
+      })
+
+      // Enable pages feature if not already enabled
+      if (!nuxt.options.pages) {
+        nuxt.options.pages = true
+      }
+
+      // Add Nuxt Devtools tab
+      if (nuxt.options._layers.some(layer => layer.config?.devtools?.enabled !== false)) {
+        nuxt.hook('devtools:customTabs', (customTabs) => {
+          customTabs.push({
+            name: 'job-queue',
+            title: 'Job Queue',
+            icon: 'carbon:data-base',
+            view: {
+              type: 'iframe',
+              src: '/_jobqueue'
+            }
+          })
+        })
       }
     }
 

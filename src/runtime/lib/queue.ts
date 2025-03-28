@@ -197,22 +197,23 @@ export default class Queue {
         return new Job(this.db, this.table, data)
     }
 
-    async removeAllCronJobs(): Promise<void> {
+    async removeAllCronJobs(): Promise<{ success: boolean }> {
         try {
             const stmt = this.db.prepare(`DELETE FROM ${this.table} WHERE cron IS NOT NULL`)
-            await stmt.run()
+            return await stmt.run()
         } catch (e) {
             console.log(e)
+            return { success: false }
         }
-
     }
 
-    async removeJob(id: number): Promise<void> {
+    async removeJob(id: number): Promise<{ success: boolean }> {
         try {
             const stmt = this.db.prepare(`DELETE FROM ${this.table} WHERE id = ?`)
-            await stmt.run(id)
+            return await stmt.run(id)
         } catch (e) {
             console.log(e)
+            return { success: false }
         }
     }
 
@@ -270,6 +271,31 @@ export default class Queue {
         const stmt = this.db.prepare(`SELECT * FROM ${this.table} WHERE cron IS NOT NULL`)
         const rows = await stmt.all()
         return rows.map((row: any) => this.job(row))
+    }
+
+    async getJobs(): Promise<Job[]> {
+        const stmt = this.db.prepare(`SELECT * FROM ${this.table}`)
+        const rows = await stmt.all()
+        return rows.map((row: any) => this.job(row))
+    }
+
+    /**
+     * Retry a failed job by ID
+     * @param id The job ID to retry
+     * @returns Object indicating success and which queue the job was found in, or null if not found
+     */
+    async retryFailedJob(id: number): Promise<{ success: boolean; queue: string } | null> {
+        const stmt = this.db.prepare(
+            `UPDATE ${this.table} SET status = '${Job.QUEUED}', dequeued = NULL, ended = NULL, result = NULL 
+             WHERE id = ? AND status = '${Job.FAILED}'`
+        )
+        const result = await stmt.run(id)
+
+        if (result.success) {
+            return { success: true, queue: this.name }
+        }
+
+        return null
     }
 }
 

@@ -51,8 +51,8 @@ export function createWorker(jobDbConnection: Connection, filesWithId: ModuleMap
       worker.register({
         [`${file.id}.${symbol}`]: async function (args: any[], callback: (arg0?: any, arg1?: any) => void) {
           try {
-            await (func as (...args: any[]) => void)(...args)
-            callback(null, args)
+            const result = await (func as (...args: any[]) => void)(...args)
+            callback(null, result)
           } catch (err) {
             callback(err)
           }
@@ -130,8 +130,8 @@ export async function defineCron(options: CronOptions, cronFunction: (...args: a
   jobWorkers[CRON_QUEUE].register({
     [`${jobName}`]: async function (args: any[], callback: (arg0?: any, arg1?: any) => void) {
       try {
-        await cronFunction(...args)
-        callback(null, args)
+        const result = await cronFunction(...args)
+        callback(null, result)
       } catch (err) {
         callback(err)
       }
