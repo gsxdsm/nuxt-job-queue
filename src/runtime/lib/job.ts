@@ -130,7 +130,7 @@ export default class Job extends EventEmitter {
         const insertOrUpdateSql = `INSERT OR REPLACE INTO ${this.table} (id, name, params, queue, retry, ` +
             ` timeout, delay, cron, priority, status, enqueued, dequeued, ended, result) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) Returning RowId`
 
-        const { id, name, params = '', queue, retry, timeout, delay, cron, priority, status, enqueued, dequeued, ended, result } = this.data
+        const { id = null, name = null, params = null, queue = null, retry = null, timeout = null, delay = null, cron = null, priority = null, status = null, enqueued = null, dequeued = null, ended = null, result = null } = this.data
         const values: Primitive[] = [id, name, typeof params === 'object' ? JSON.stringify(params) : params, queue, typeof retry == 'object' ? JSON.stringify(retry) : retry, timeout, delay, cron, priority, status, enqueued, dequeued, ended, result]
 
         const stmt = this.db.prepare(insertOrUpdateSql)

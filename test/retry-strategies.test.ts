@@ -4,7 +4,7 @@ import { DEFAULT_QUEUE } from '../src/runtime/lib/enum'
 import { createQueues, createJobHandler, createWorker } from '../src/runtime/server'
 import fs from 'fs'
 import { createDatabase } from "db0"
-import sqlite from "db0/connectors/better-sqlite3"
+import sqlite from "db0/connectors/node-sqlite"
 
 const TEST_DB_PATH = './test/data/retry-test.sqlite'
 let jobDbConnection: Connection
